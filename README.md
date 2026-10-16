@@ -2,6 +2,10 @@
 
 Real-time navigation mobile application for motorcycle convoys with AI-based route analysis
 
+## Szakdolgozat Alapadatok
+
+| Megnevezés | Érték |
+| :--- | :--- |
 | **Szakdolgozó neve** | Lischka Áron |
 | **EHA / Neptun kód** | SSPWFB |
 | **Szak** | üzemmérnök-informatikus BProf |
