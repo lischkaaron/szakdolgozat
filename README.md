@@ -4,7 +4,7 @@ Real-time navigation mobile application for motorcycle convoys with AI-based rou
 
 ## Szakdolgozat Alapadatok
 
-
+| | |
 | :--- | :--- |
 | **Szakdolgozó neve** | Lischka Áron |
 | **EHA / Neptun kód** | SSPWFB |
