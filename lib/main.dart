@@ -20,7 +20,8 @@ class MotorcycleConvoyApp extends StatelessWidget {
       theme: ThemeData.light().copyWith(
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),
         colorScheme: const ColorScheme.light(
-          primary: Colors.amber, // Jól látható, motoros témához illő sárga/narancs
+          primary:
+              Colors.amber, // Jól látható, motoros témához illő sárga/narancs
           onPrimary: Colors.black,
           secondary: Colors.amberAccent,
           onSecondary: Colors.black,
@@ -36,7 +37,7 @@ class MotorcycleConvoyApp extends StatelessWidget {
   }
 }
 
-// A 4 fő képernyőt összefogó alsó navigáció.
+// A 3 fő képernyőt összefogó alsó navigáció.
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -47,18 +48,49 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
-  // A 4 fő nézet, amiről a tématerv is szól
-  final List<Widget> _screens = const [
-    MapConvoyScreen(),
-    TourPlannerScreen(),
-    CommunityScreen(),
-    ProfileScreen(),
-  ];
+  // Túra közben csak a túra képernyő látszik, alsó navigáció nélkül.
+  bool _tourActive = false;
+
+  // A tervezőből indított túra útvonala (a túra képernyő felső sávjához).
+  String _tourOrigin = 'Budapest';
+  String _tourDestination = 'Balatonfüred';
+
+  // A tervező "TÚRA INDÍTÁSA" gombja hívja meg.
+  void _startTour(String origin, String destination) {
+    setState(() {
+      _tourOrigin = origin;
+      _tourDestination = destination;
+      _tourActive = true;
+    });
+  }
+
+  void _endTour() {
+    setState(() {
+      _tourActive = false;
+      _currentIndex = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Túra közben eltűnik az alsó navigációs sáv.
+    if (_tourActive) {
+      return MapConvoyScreen(
+        origin: _tourOrigin,
+        destination: _tourDestination,
+        onEndTour: _endTour,
+      );
+    }
+
+    // A 3 fő nézet: tervezés, közösség és profil.
+    final List<Widget> screens = <Widget>[
+      TourPlannerScreen(onStartTour: _startTour),
+      const CommunityScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -72,12 +104,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.navigation_rounded),
-            label: 'Túra / Térkép',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.route_rounded),
-            label: 'Tervezés (AI)',
+            label: 'Tervezés',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.group_rounded),
