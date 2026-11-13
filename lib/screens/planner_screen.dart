@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/friend.dart';
+import '../models/group.dart';
+import '../models/tour.dart';
+import '../services/api_client.dart';
+import '../services/friends_service.dart';
+import '../services/groups_service.dart';
+import '../services/tours_service.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/map_placeholder.dart';
 
@@ -42,10 +50,67 @@ class _TourPlannerScreenState extends State<TourPlannerScreen> {
   String? _destination;
   bool _useCurrentLocation = true;
 
+  // A túrához meghívható barátok és csoportok a backendről.
+  List<Friend> _friends = const <Friend>[];
+  List<BikeGroup> _groups = const <BikeGroup>[];
+  final Set<String> _selectedFriendIds = <String>{};
+  final Set<String> _selectedGroupIds = <String>{};
+
+  bool _inviteLoading = true;
+  String? _inviteError;
+  bool _savingTour = false;
+
+  FriendsService get _friendsService => context.read<FriendsService>();
+  GroupsService get _groupsService => context.read<GroupsService>();
+  ToursService get _toursService => context.read<ToursService>();
+
   @override
   void initState() {
     super.initState();
     _destinationFocus.addListener(_handleDestinationFocusChange);
+    _loadInvitees();
+  }
+
+  /// Barátok és csoportok betöltése a "RÉSZTVEVŐK MEGHÍVÁSA" kártyához.
+  Future<void> _loadInvitees() async {
+    if (mounted) {
+      setState(() {
+        _inviteLoading = true;
+        _inviteError = null;
+      });
+    }
+
+    try {
+      final friends = await _friendsService.fetchFriends();
+
+      // A csoportok csak kényelmi meghíváshoz kellenek; ha nem jönnek be,
+      // a barátlistával akkor is működik a kártya.
+      List<BikeGroup> groups = const <BikeGroup>[];
+      try {
+        groups = await _groupsService.fetchGroups();
+      } on ApiException {
+        groups = const <BikeGroup>[];
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _friends = friends;
+        _groups = groups;
+        _inviteLoading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _inviteError = error.message;
+        _inviteLoading = false;
+      });
+    }
   }
 
   @override
@@ -110,6 +175,68 @@ class _TourPlannerScreenState extends State<TourPlannerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
+  }
+
+  void _toggleFriend(String friendId) {
+    setState(() {
+      if (!_selectedFriendIds.remove(friendId)) {
+        _selectedFriendIds.add(friendId);
+      }
+    });
+  }
+
+  void _toggleGroup(String groupId) {
+    setState(() {
+      if (!_selectedGroupIds.remove(groupId)) {
+        _selectedGroupIds.add(groupId);
+      }
+    });
+  }
+
+  /// A túra mentése a backendre (`draft`) vagy indítása (`active`).
+  /// Hiba esetén hibaüzenetet mutat, és null-lal tér vissza.
+  Future<BikeTour?> _persistTour(String status) async {
+    if (_savingTour) {
+      return null;
+    }
+
+    setState(() => _savingTour = true);
+
+    try {
+      final tour = await _toursService.createTour(
+        title: '$_originLabel ➔ $_destinationLabel',
+        originName: _originLabel,
+        destinationName: _destinationLabel,
+        status: status,
+        inviteUserIds: _selectedFriendIds.toList(),
+        inviteGroupIds: _selectedGroupIds.toList(),
+      );
+
+      if (!mounted) {
+        return tour;
+      }
+
+      // Indításkor a túra képernyő veszi át a vezetést, ott nem kell üzenet.
+      if (status != 'active') {
+        final memberText = tour.memberCount > 1
+            ? ' • ${tour.memberCount} résztvevő'
+            : '';
+        _showMessage(context, 'Túra elmentve: ${tour.title}$memberText');
+      }
+
+      return tour;
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return null;
+      }
+
+      _showMessage(context, error.message);
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _savingTour = false);
+      }
+    }
   }
 
   @override
@@ -205,10 +332,7 @@ class _TourPlannerScreenState extends State<TourPlannerScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: () => _showMessage(
-                  context,
-                  'Túra elmentve: $_originLabel ➔ Mátra ➔ $_destinationLabel',
-                ),
+                onPressed: _savingTour ? null : () => _persistTour('draft'),
                 icon: const Icon(Icons.bookmark_add_outlined),
                 label: const Text(
                   'TÚRA MENTÉSE',
@@ -221,8 +345,15 @@ class _TourPlannerScreenState extends State<TourPlannerScreen> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: _primaryButtonStyle(),
-                onPressed: () =>
-                    widget.onStartTour(_originLabel, _destinationLabel),
+                onPressed: _savingTour
+                    ? null
+                    : () async {
+                        final tour = await _persistTour('active');
+
+                        if (tour != null && mounted) {
+                          widget.onStartTour(_originLabel, _destinationLabel);
+                        }
+                      },
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: const Text(
                   'TÚRA INDÍTÁSA',
@@ -538,65 +669,99 @@ class _TourPlannerScreenState extends State<TourPlannerScreen> {
           children: [
             const Text('RÉSZTVEVŐK MEGHÍVÁSA', style: sectionLabelStyle),
             const SizedBox(height: 12),
-            const Text(
-              'Barátok hozzáadása',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _InviteChip(
-                  initials: 'KÁ',
-                  label: 'Kovács Ádám',
-                  onTap: () =>
-                      _showMessage(context, 'Meghívó elküldve: Kovács Ádám'),
+            if (_inviteLoading)
+              const Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Text('Barátok és csoportok betöltése…'),
+                ],
+              )
+            else if (_inviteError != null)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _inviteError!,
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _loadInvitees,
+                    child: const Text('Újra'),
+                  ),
+                ],
+              )
+            else ...[
+              const Text(
+                'Barátok hozzáadása',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (_friends.isEmpty)
+                Text(
+                  'Még nincs barátod – a Közösség fülön jelölhetsz be valakit.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final friend in _friends)
+                      _InviteChip(
+                        key: Key('inviteFriend_${friend.id}'),
+                        initials: friend.initials,
+                        label: friend.displayName,
+                        selected: _selectedFriendIds.contains(friend.id),
+                        onTap: () => _toggleFriend(friend.id),
+                      ),
+                  ],
                 ),
-                _InviteChip(
-                  initials: 'NT',
-                  label: 'Nagy Tamás',
-                  onTap: () =>
-                      _showMessage(context, 'Meghívó elküldve: Nagy Tamás'),
+              const SizedBox(height: 16),
+              const Text(
+                'Csoport hozzáadása',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (_groups.isEmpty)
+                Text(
+                  'Még nincs csoportod – a Közösség fülön hozhatsz létre egyet.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final group in _groups)
+                      _InviteChip(
+                        key: Key('inviteGroup_${group.id}'),
+                        initials: group.initials,
+                        label: group.name,
+                        isGroup: true,
+                        selected: _selectedGroupIds.contains(group.id),
+                        onTap: () => _toggleGroup(group.id),
+                      ),
+                  ],
                 ),
-                _InviteChip(
-                  initials: 'SR',
-                  label: 'Szabó Réka',
-                  onTap: () =>
-                      _showMessage(context, 'Meghívó elküldve: Szabó Réka'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Csoport hozzáadása',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _InviteChip(
-                  initials: 'BR',
-                  label: 'Betyár Riders Klub',
-                  isGroup: true,
-                  onTap: () => _showMessage(
-                    context,
-                    'Csoport meghívva: Betyár Riders Klub',
+              if (_selectedFriendIds.isNotEmpty ||
+                  _selectedGroupIds.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Kiválasztva: ${_selectedFriendIds.length} barát, '
+                  '${_selectedGroupIds.length} csoport',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                _InviteChip(
-                  initials: 'HM',
-                  label: 'Hétvégi Motorosok',
-                  isGroup: true,
-                  onTap: () => _showMessage(
-                    context,
-                    'Csoport meghívva: Hétvégi Motorosok',
-                  ),
-                ),
               ],
-            ),
+            ],
           ],
         ),
       ),
@@ -843,18 +1008,21 @@ class _InviteChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool isGroup;
+  final bool selected;
 
   const _InviteChip({
+    super.key,
     required this.initials,
     required this.label,
     required this.onTap,
     this.isGroup = false,
+    this.selected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF5F5F5),
+      color: selected ? Colors.amber : const Color(0xFFF5F5F5),
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
@@ -863,7 +1031,9 @@ class _InviteChip extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFE0E0E0)),
+            border: Border.all(
+              color: selected ? Colors.amber : const Color(0xFFE0E0E0),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -893,10 +1063,10 @@ class _InviteChip extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              const Icon(
-                Icons.add_circle_outline,
+              Icon(
+                selected ? Icons.check_circle : Icons.add_circle_outline,
                 size: 16,
-                color: Color(0xFF616161),
+                color: selected ? Colors.black : const Color(0xFF616161),
               ),
             ],
           ),

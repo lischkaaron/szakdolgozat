@@ -1,8 +1,9 @@
 # Motoros Konvoj – Backend
 
 Node.js + Express + PostgreSQL/PostGIS REST API a szakdolgozat mobilalkalmazásához.
-Ez az **M1 mérföldkő** backend alapja: adatbázis séma, regisztráció/bejelentkezés (JWT),
-profilkezelés és barátkezelés.
+Ez a backend az **M1–M2 mérföldkő** alapja: adatbázis séma, regisztráció/bejelentkezés
+(JWT), profil- és barátkezelés, motoros csoportok, valamint túrák mentése,
+meghívása és státuszkezelése.
 
 ## Követelmények
 
@@ -73,6 +74,14 @@ Bobber tag).
 | DELETE | `/api/groups/:id` | Bearer | Csoport törlése (csak tulajdonos) |
 | POST | `/api/groups/:id/members` | Bearer | Tag hozzáadása barátból (csak tulajdonos) |
 | DELETE | `/api/groups/:id/members/:userId` | Bearer | Tag eltávolítása / kilépés |
+| GET | `/api/tours` | Bearer | Saját túrák (vezetőként vagy meghívottként) |
+| POST | `/api/tours` | Bearer | Új túra, opcionális meghívással (`inviteUserIds`, `inviteGroupIds`) |
+| GET | `/api/tours/:id` | Bearer | Túra részletei (csak résztvevő) |
+| PATCH | `/api/tours/:id` | Bearer | Cím / státusz módosítása (csak vezető) |
+| DELETE | `/api/tours/:id` | Bearer | Túra törlése (csak vezető) |
+| POST | `/api/tours/:id/members` | Bearer | Résztvevő meghívása barátból vagy csoportból (csak vezető) |
+| PATCH | `/api/tours/:id/members/me` | Bearer | Meghívás elfogadása / elutasítása |
+| DELETE | `/api/tours/:id/members/:userId` | Bearer | Résztvevő eltávolítása / részvétel lemondása |
 
 Hibák egységes formátumban: `{ "error": { "message": "..." } }`.
 
@@ -118,6 +127,19 @@ Invoke-RestMethod -Method Post -Uri "$base/api/groups/$($group.group.id)/members
 
 # 7) Bob csoportjai (tagként látja)
 Invoke-RestMethod -Uri "$base/api/groups" -Headers $bobHeaders
+
+# 8) Túra létrehozása Bob meghívásával, majd Bob elfogadja
+$tour = Invoke-RestMethod -Method Post -Uri "$base/api/tours" -Headers $headers `
+  -ContentType 'application/json' -Body (@{
+    title = 'Budapest ➔ Eger'
+    originName = 'Budapest'
+    destinationName = 'Eger'
+    status = 'planned'
+    inviteUserIds = @($bob.user.id)
+  } | ConvertTo-Json)
+
+Invoke-RestMethod -Method Patch -Uri "$base/api/tours/$($tour.tour.id)/members/me" `
+  -Headers $bobHeaders -ContentType 'application/json' -Body '{"status":"accepted"}'
 ```
 
 Bash/macOS alatt ugyanez `curl`-lal:
@@ -145,7 +167,7 @@ backend/
     db/seed.js            fejlesztői mintaadatok (tesztfelhasználók, barátság, csoport)
     middleware/auth.js    JWT kiállítás és Bearer ellenőrzés
     middleware/error.js   404 + egységes hibaválasz
-    routes/               health, auth, users, friends, groups
+    routes/               health, auth, users, friends, groups, tours
     utils/                validálás, hibák, JSON szerializálás
 ```
 
@@ -168,7 +190,6 @@ backend/
 
 ## Következő lépések (a terv szerint)
 
-1. `tours` / `tour_members` végpontok (túra létrehozása, meghívás, státusz).
-2. `positions` POST + Socket.io szoba a valós idejű helyzethez.
-3. `recommendations` végpont + OpenAI hívás szerveroldali proxyként (kulcs ne kerüljön az appba).
-4. Automatizált tesztek (Jest + supertest) a jelenlegi végpontokra.
+1. `positions` POST + Socket.io szoba a valós idejű helyzethez.
+2. `recommendations` végpont + OpenAI hívás szerveroldali proxyként (kulcs ne kerüljön az appba).
+3. Automatizált tesztek (Jest + supertest) a jelenlegi végpontokra.

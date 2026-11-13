@@ -84,4 +84,77 @@ function requireUuid(value, field = 'id') {
   return value;
 }
 
-module.exports = { requireString, optionalString, requireEmail, requirePassword, requireUuid };
+/**
+ * Opcionális szám (pl. szélesség/hosszúság, távolság, időtartam).
+ * Hiányzó érték -> null. Az [integer] igaz, ha csak egész szám lehet.
+ */
+function optionalNumber(value, field, { min = -Infinity, max = Infinity, integer = false } = {}) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw HttpError.badRequest(`A(z) "${field}" mező szám kell legyen.`);
+  }
+
+  if (integer && !Number.isInteger(value)) {
+    throw HttpError.badRequest(`A(z) "${field}" mező egész szám kell legyen.`);
+  }
+
+  if (value < min || value > max) {
+    throw HttpError.badRequest(`A(z) "${field}" mező értéke ${min} és ${max} között legyen.`);
+  }
+
+  return value;
+}
+
+/** Opcionális ISO 8601 időpont; hiányzó érték -> null, egyébként ISO sztring. */
+function optionalDateTime(value, field) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw HttpError.badRequest(`A(z) "${field}" mező ISO 8601 időpont (szöveg) kell legyen.`);
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw HttpError.badRequest(`A(z) "${field}" mező érvénytelen időpont.`);
+  }
+
+  return date.toISOString();
+}
+
+/**
+ * Opcionális UUID lista (pl. meghívott barátok, csoportok).
+ * Hiányzó érték -> üres tömb, a duplikátumok kiszűrve.
+ */
+function optionalUuidArray(value, field, { max = 100 } = {}) {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw HttpError.badRequest(`A(z) "${field}" mező lista kell legyen.`);
+  }
+
+  if (value.length > max) {
+    throw HttpError.badRequest(`A(z) "${field}" mező legfeljebb ${max} elemet tartalmazhat.`);
+  }
+
+  const ids = value.map((item, index) => requireUuid(item, `${field}[${index}]`));
+  return [...new Set(ids)];
+}
+
+module.exports = {
+  requireString,
+  optionalString,
+  requireEmail,
+  requirePassword,
+  requireUuid,
+  optionalNumber,
+  optionalDateTime,
+  optionalUuidArray,
+};

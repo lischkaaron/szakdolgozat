@@ -9,6 +9,7 @@ import 'services/groups_service.dart';
 import 'services/http_auth_api.dart';
 import 'services/server_settings.dart';
 import 'services/token_storage.dart';
+import 'services/tours_service.dart';
 import 'state/auth_controller.dart';
 
 Future<void> main() async {
@@ -33,6 +34,7 @@ Future<void> main() async {
       authController: authController,
       friendsService: FriendsService(apiClient),
       groupsService: GroupsService(apiClient),
+      toursService: ToursService(apiClient),
       apiClient: apiClient,
     ),
   );
@@ -44,12 +46,14 @@ class MotorcycleConvoyApp extends StatelessWidget {
     required this.authController,
     required this.friendsService,
     required this.groupsService,
+    required this.toursService,
     required this.apiClient,
   });
 
   final AuthController authController;
   final FriendsService friendsService;
   final GroupsService groupsService;
+  final ToursService toursService;
   final ApiClient apiClient;
 
   @override
@@ -59,6 +63,7 @@ class MotorcycleConvoyApp extends StatelessWidget {
         ChangeNotifierProvider<AuthController>.value(value: authController),
         Provider<FriendsService>.value(value: friendsService),
         Provider<GroupsService>.value(value: groupsService),
+        Provider<ToursService>.value(value: toursService),
         Provider<ApiClient>.value(value: apiClient),
       ],
       child: MaterialApp(

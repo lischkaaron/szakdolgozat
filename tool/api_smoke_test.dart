@@ -9,12 +9,14 @@ import 'package:moto_konvoj/services/api_client.dart';
 import 'package:moto_konvoj/services/friends_service.dart';
 import 'package:moto_konvoj/services/groups_service.dart';
 import 'package:moto_konvoj/services/http_auth_api.dart';
+import 'package:moto_konvoj/services/tours_service.dart';
 
 Future<void> main() async {
   final client = ApiClient(baseUrl: 'http://localhost:3000/api');
   final api = HttpAuthApi(client);
   final friendsService = FriendsService(client);
   final groupsService = GroupsService(client);
+  final toursService = ToursService(client);
   final suffix = Random().nextInt(99999);
 
   final session = await api.register(
@@ -72,6 +74,33 @@ Future<void> main() async {
   final withMember = await groupsService.addMember(group.id, userId: partner.id);
   print('group add member OK -> ${withMember.memberCount} tag');
 
+  // --- Túrák ---------------------------------------------------------------
+  // A csoport meghívásával a partner is bekerül a túrába (invited állapotban).
+  final tour = await toursService.createTour(
+    title: 'Smoke túra $suffix',
+    originName: 'Budapest',
+    destinationName: 'Eger',
+    status: 'planned',
+    inviteGroupIds: <String>[group.id],
+  );
+  print(
+    'tour create OK -> ${tour.title} (${tour.memberCount} résztvevő, '
+    'vezető=${tour.isLeader})',
+  );
+
+  final tourList = await toursService.fetchTours();
+  print('tours OK -> ${tourList.length} túra (${tourList.first.status})');
+
+  final activeTour = await toursService.updateTour(tour.id, status: 'active');
+  print('tour status OK -> ${activeTour.status}');
+
+  try {
+    await toursService.updateTour(tour.id, status: 'planned');
+    print('HIBA: az aktív túra visszaállítása nem dobott kivételt');
+  } on ApiException catch (error) {
+    print('túra státusz hibakezelés OK -> HTTP ${error.statusCode}');
+  }
+
   final renamed = await groupsService.updateGroup(
     group.id,
     name: '${group.name} Átnevezve',
@@ -87,6 +116,16 @@ Future<void> main() async {
     'saját tag=${partnerView.selfMember?.displayName}',
   );
 
+  final partnerTours = await toursService.fetchTours();
+  final partnerTour = partnerTours.firstWhere((item) => item.id == tour.id);
+  print(
+    'partner tour view OK -> myStatus=${partnerTour.myStatus}, '
+    'vezető=${partnerTour.members.first.displayName}',
+  );
+
+  final acceptedTour = await toursService.respondToInvite(tour.id, accept: true);
+  print('invite accept OK -> myStatus=${acceptedTour.myStatus}');
+
   await groupsService.removeMember(group.id, partner.id);
   print('leave group OK -> ${partner.displayName} kilépett');
 
@@ -94,6 +133,16 @@ Future<void> main() async {
   await groupsService.deleteGroup(group.id);
   final afterDelete = await groupsService.fetchGroups();
   print('group delete OK -> maradék csoport: ${afterDelete.length}');
+
+  await toursService.deleteTour(tour.id);
+  print('tour delete OK -> ${tour.title}');
+
+  try {
+    await toursService.fetchTour(tour.id);
+    print('HIBA: a törölt túra lekérése nem dobott kivételt');
+  } on ApiException catch (error) {
+    print('túra törlés hibakezelés OK -> HTTP ${error.statusCode}');
+  }
 
   // --- Hibakezelés ---------------------------------------------------------
   try {

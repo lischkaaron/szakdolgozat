@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const friendRoutes = require('./routes/friends');
 const groupRoutes = require('./routes/groups');
+const tourRoutes = require('./routes/tours');
 const { notFoundHandler, errorHandler } = require('./middleware/error');
 
 const DOCS_HTML = `<!doctype html>
@@ -65,6 +66,7 @@ function createApp() {
   app.use('/api/users', userRoutes);
   app.use('/api/friends', friendRoutes);
   app.use('/api/groups', groupRoutes);
+  app.use('/api/tours', tourRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

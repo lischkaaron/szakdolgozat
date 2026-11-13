@@ -67,6 +67,18 @@ A listák lehúzással frissíthetők, a módosítások azonnal a PostgreSQL ada
 kerülnek (`/api/friends`, `/api/groups` végpontok). A csoport tulajdonosa az, aki
 létrehozta; ő szerkesztheti és törölheti a csoportot, valamint tagokat kezelhet.
 
+### Túratervezés: mentés, indítás és meghívás
+
+A **Tervezés** fülön kiválasztott útvonalhoz a „RÉSZTVEVŐK MEGHÍVÁSA” kártyán a
+backendről betöltött barátok és csoportok közül lehet választani (a kiválasztott
+elemek sárgán jelennek meg). A **TÚRA MENTÉSE** `draft`, a **TÚRA INDÍTÁSA**
+`active` státusszal menti a túrát a `POST /api/tours` végponton, a kiválasztott
+barátokat (`inviteUserIds`) és csoportokat (`inviteGroupIds`) pedig meghívja.
+A meghívottak `invited` állapotba kerülnek, és a
+`PATCH /api/tours/:id/members/me` végponton fogadhatják el vagy utasíthatják el
+a meghívást; a vezető a `PATCH /api/tours/:id` végponttal léptetheti a túra
+státuszát (`draft` → `planned` → `active` → `finished`).
+
 ### Kész tesztfelhasználók (fejlesztői adatbázis)
 
 | E-mail | Jelszó | Megjegyzés |

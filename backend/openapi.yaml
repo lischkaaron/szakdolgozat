@@ -21,6 +21,8 @@ tags:
     description: Barátlista és barátkérések kezelése
   - name: Groups
     description: Motoros csapatok (csoportok) és tagságuk kezelése
+  - name: Tours
+    description: Túrák tervezése, mentése, résztvevők meghívása és státuszkezelés
 
 paths:
   /health:
@@ -437,6 +439,238 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/tours:
+    get:
+      tags: [Tours]
+      summary: Saját túrák (vezetőként vagy résztvevőként)
+      operationId: listTours
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Túrák a résztvevők listájával, a legújabb elöl
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tours:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tour' }
+    post:
+      tags: [Tours]
+      summary: Új túra létrehozása (opcionális meghívással)
+      description: >
+        A létrehozó vezető lesz (elfogadott részvétellel). A megadott barátok
+        és a meghívott csoportok tagjai `invited` állapotban kerülnek a túrához.
+      operationId: createTour
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [originName, destinationName]
+              properties:
+                title:
+                  type: string
+                  maxLength: 255
+                  description: 'Alapértelmezés: „indulás ➔ úti cél”'
+                originName: { type: string, maxLength: 120, example: Budapest }
+                originLat: { type: number, format: double, nullable: true }
+                originLng: { type: number, format: double, nullable: true }
+                destinationName: { type: string, maxLength: 120, example: Eger }
+                destinationLat: { type: number, format: double, nullable: true }
+                destinationLng: { type: number, format: double, nullable: true }
+                distanceM: { type: integer, nullable: true, description: 'Távolság méterben' }
+                durationS: { type: integer, nullable: true, description: 'Becsült idő másodpercben' }
+                scheduledAt: { type: string, format: date-time, nullable: true }
+                status:
+                  type: string
+                  enum: [draft, planned, active]
+                  default: planned
+                inviteUserIds:
+                  type: array
+                  description: Meghívott barátok (csak barát lehet)
+                  items: { type: string, format: uuid }
+                inviteGroupIds:
+                  type: array
+                  description: Meghívott csoportok (csak saját csoport); minden tag meghívást kap
+                  items: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Létrehozott túra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tour: { $ref: '#/components/schemas/Tour' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/tours/{id}:
+    get:
+      tags: [Tours]
+      summary: Túra részletei (csak résztvevő)
+      operationId: getTour
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A túra a résztvevőkkel
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tour: { $ref: '#/components/schemas/Tour' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tours]
+      summary: Túra módosítása (cím, státusz, tervezett indulás; csak vezető)
+      description: >
+        A státusz csak előre léphet: draft -> planned -> active -> finished.
+      operationId: updateTour
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 255 }
+                status: { type: string, enum: [draft, planned, active, finished] }
+                scheduledAt: { type: string, format: date-time, nullable: true }
+      responses:
+        '200':
+          description: A frissített túra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tour: { $ref: '#/components/schemas/Tour' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Tours]
+      summary: Túra törlése (csak vezető)
+      operationId: deleteTour
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Törölve }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/tours/{id}/members:
+    post:
+      tags: [Tours]
+      summary: Résztvevő meghívása barátból vagy csoportból (csak vezető)
+      description: >
+        `userId` esetén a felhasználónak barátjának kell lennie; `groupId` esetén
+        a csoport minden tagja meghívást kap. A meghívottak `invited` állapotba kerülnek.
+      operationId: inviteTourMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A meghívott barát vagy csoport azonosítója (legalább az egyik).
+              properties:
+                userId: { type: string, format: uuid }
+                groupId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: A túra a frissített résztvevőlistával
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tour: { $ref: '#/components/schemas/Tour' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/tours/{id}/members/me:
+    patch:
+      tags: [Tours]
+      summary: Meghívás elfogadása vagy elutasítása (a meghívott saját válasza)
+      operationId: respondToTourInvite
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [accepted, declined] }
+      responses:
+        '200':
+          description: A túra a frissített részvételi állapottal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tour: { $ref: '#/components/schemas/Tour' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/tours/{id}/members/{userId}:
+    delete:
+      tags: [Tours]
+      summary: Résztvevő eltávolítása vagy a részvétel lemondása
+      description: A vezető bárkit eltávolíthat; mindenki más csak saját magát (lemondás). A vezető nem léphet ki.
+      operationId: removeTourMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Eltávolítva }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -543,6 +777,43 @@ components:
         members:
           type: array
           items: { $ref: '#/components/schemas/GroupMember' }
+
+    TourMember:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email, nullable: true }
+        motorcycle: { type: string, nullable: true }
+        role: { type: string, enum: [leader, member] }
+        status: { type: string, enum: [invited, accepted, declined] }
+        joinedAt: { type: string, format: date-time }
+        isSelf: { type: boolean, description: 'Igaz, ha ez a sor a bejelentkezett felhasználó' }
+
+    Tour:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, example: 'Jelenlegi hely ➔ Eger' }
+        originName: { type: string, example: Budapest }
+        originLat: { type: number, format: double, nullable: true }
+        originLng: { type: number, format: double, nullable: true }
+        destinationName: { type: string, example: Eger }
+        destinationLat: { type: number, format: double, nullable: true }
+        destinationLng: { type: number, format: double, nullable: true }
+        distanceM: { type: integer, nullable: true, description: 'Távolság méterben' }
+        durationS: { type: integer, nullable: true, description: 'Becsült menetidő másodpercben' }
+        status: { type: string, enum: [draft, planned, active, finished] }
+        scheduledAt: { type: string, format: date-time, nullable: true }
+        createdBy: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        memberCount: { type: integer }
+        myRole: { type: string, enum: [leader, member], nullable: true }
+        myStatus: { type: string, enum: [invited, accepted, declined], nullable: true }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/TourMember' }
 
     AuthResponse:
       type: object
