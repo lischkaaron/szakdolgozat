@@ -1,0 +1,560 @@
+openapi: 3.0.3
+info:
+  title: Motoros Konvoj API
+  version: 0.1.0
+  description: >
+    A Motoros Konvoj szakdolgozat backend REST API-ja.
+    Interaktív dokumentáció: http://localhost:3000/api/docs
+  license:
+    name: Szakdolgozat – oktatási célú felhasználás
+servers:
+  - url: http://localhost:3000
+    description: Helyi fejlesztői szerver
+tags:
+  - name: Health
+    description: Szolgáltatás és adatbázis állapot ellenőrzése
+  - name: Auth
+    description: Regisztráció és bejelentkezés JWT tokennel
+  - name: Users
+    description: Profil kezelése és felhasználó keresés
+  - name: Friends
+    description: Barátlista és barátkérések kezelése
+  - name: Groups
+    description: Motoros csapatok (csoportok) és tagságuk kezelése
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Szolgáltatás és adatbázis állapota
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Minden elérhető
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: Az adatbázis nem érhető el
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Új felhasználó regisztrálása
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email, example: teszt@example.com }
+                password: { type: string, minLength: 8, maxLength: 72, example: titkosJelszo123 }
+                displayName: { type: string, minLength: 2, maxLength: 80, example: Kovács Béla }
+                motorcycle: { type: string, maxLength: 120, example: Honda CB500X }
+      responses:
+        '201':
+          description: Sikeres regisztráció
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Bejelentkezés e-mail címmel és jelszóval
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Sikeres bejelentkezés
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Bejelentkezett felhasználó profilja
+      operationId: getMe
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: A profil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Users]
+      summary: Profil módosítása
+      operationId: updateMe
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, minLength: 2, maxLength: 80 }
+                motorcycle: { type: string, maxLength: 120, nullable: true }
+      responses:
+        '200':
+          description: Módosított profil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/users/search:
+    get:
+      tags: [Users]
+      summary: Felhasználó keresése név vagy e-mail alapján
+      operationId: searchUsers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+      responses:
+        '200':
+          description: Találatok (max. 20)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+
+  /api/friends:
+    get:
+      tags: [Friends]
+      summary: Barátlista
+      operationId: listFriends
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Barátok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  friends:
+                    type: array
+                    items: { $ref: '#/components/schemas/Friend' }
+
+  /api/friends/requests:
+    get:
+      tags: [Friends]
+      summary: Barátkérések (függő és lezárt)
+      operationId: listFriendRequests
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Kérések
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: array
+                    items: { $ref: '#/components/schemas/FriendRequest' }
+                  history:
+                    type: array
+                    items: { $ref: '#/components/schemas/FriendRequest' }
+    post:
+      tags: [Friends]
+      summary: Barátkérés küldése e-mail vagy userId alapján
+      operationId: createFriendRequest
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                userId: { type: string, format: uuid }
+      responses:
+        '201': { description: Létrehozott kérés }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/friends/requests/{id}/accept:
+    post:
+      tags: [Friends]
+      summary: Barátkérés elfogadása (csak a címzett)
+      operationId: acceptFriendRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Elfogadva }
+        '403': { description: Nem a címzett hívta }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/friends/requests/{id}/decline:
+    post:
+      tags: [Friends]
+      summary: Barátkérés elutasítása
+      operationId: declineFriendRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Elutasítva }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/friends/{userId}:
+    delete:
+      tags: [Friends]
+      summary: Barátság megszüntetése
+      operationId: deleteFriend
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Törölve }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/friends/requests/{id}:
+    delete:
+      tags: [Friends]
+      summary: Saját függő barátkérés visszavonása
+      operationId: cancelFriendRequest
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Visszavonva }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/groups:
+    get:
+      tags: [Groups]
+      summary: Saját csoportok (tagként vagy tulajdonosként)
+      operationId: listGroups
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: A csoportok tagjaikkal
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items: { $ref: '#/components/schemas/Group' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Groups]
+      summary: Új csoport létrehozása
+      operationId: createGroup
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80, example: Betyár Riders Klub }
+                description: { type: string, maxLength: 280, example: Hétvégi túrázó csapat }
+      responses:
+        '201':
+          description: A létrehozott csoport (a létrehozó tulajdonos tag)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group: { $ref: '#/components/schemas/Group' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/groups/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Groups]
+      summary: Csoport részletei (tagokkal)
+      operationId: getGroup
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: A csoport és tagjai
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group: { $ref: '#/components/schemas/Group' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Groups]
+      summary: Csoport nevének / leírásának módosítása (csak tulajdonos)
+      operationId: updateGroup
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                description: { type: string, maxLength: 280 }
+      responses:
+        '200':
+          description: A frissített csoport
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group: { $ref: '#/components/schemas/Group' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Groups]
+      summary: Csoport törlése (csak tulajdonos)
+      operationId: deleteGroup
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Törölve }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/groups/{id}/members:
+    post:
+      tags: [Groups]
+      summary: Tag hozzáadása barátból (csak tulajdonos)
+      operationId: addGroupMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A tag azonosítója vagy e-mail címe (legalább az egyik).
+              properties:
+                userId: { type: string, format: uuid }
+                email: { type: string, format: email }
+      responses:
+        '201':
+          description: A csoport a frissített taglistával
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group: { $ref: '#/components/schemas/Group' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/groups/{id}/members/{userId}:
+    delete:
+      tags: [Groups]
+      summary: Tag eltávolítása vagy kilépés a csoportból
+      description: A tulajdonos bármely tagot eltávolíthatja; mindenki más csak saját magát (kilépés). A tulajdonos nem léphet ki.
+      operationId: removeGroupMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Eltávolítva }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Hibás kérés
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Hitelesítési hiba
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Nincs jogosultság a művelethez (pl. nem tulajdonos)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Nem található
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Ütközés (pl. létező e-mail cím vagy barátkérés)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        db: { type: string, enum: [up, down] }
+        service: { type: string }
+        version: { type: string }
+        time: { type: string, format: date-time }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        motorcycle: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    Friend:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email }
+        motorcycle: { type: string, nullable: true }
+        friendsSince: { type: string, format: date-time }
+
+    FriendRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, accepted, declined] }
+        direction: { type: string, enum: [incoming, outgoing] }
+        createdAt: { type: string, format: date-time }
+        respondedAt: { type: string, format: date-time, nullable: true }
+        requester:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            displayName: { type: string }
+        addressee:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            displayName: { type: string }
+
+    GroupMember:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email, nullable: true }
+        motorcycle: { type: string, nullable: true }
+        role: { type: string, enum: [owner, member] }
+        joinedAt: { type: string, format: date-time }
+        isSelf: { type: boolean, description: 'Igaz, ha ez a sor a bejelentkezett felhasználó' }
+
+    Group:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        ownerId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        memberCount: { type: integer }
+        myRole: { type: string, enum: [owner, member] }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/GroupMember' }
+
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string, description: 'JWT access token (Bearer)' }
+        user: { $ref: '#/components/schemas/User' }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message: { type: string }
+            details: { type: object, nullable: true }

@@ -1,0 +1,37 @@
+# Docker adatbázis a Motoros Konvoj backendhez.
+# Indítás:  docker compose up -d
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: moto_konvoj_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: moto_konvoj
+      POSTGRES_USER: moto
+      POSTGRES_PASSWORD: moto_dev_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - moto_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moto -d moto_konvoj"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Böngészős adatbázis-nézegető (http://localhost:8081)
+  adminer:
+    image: adminer:4
+    container_name: moto_konvoj_adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DEFAULT_DB: moto_konvoj
+
+volumes:
+  moto_pgdata:
