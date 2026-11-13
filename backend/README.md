@@ -27,7 +27,10 @@ npm install
 # 4) Táblák létrehozása
 npm run migrate
 
-# 5) Szerver indítása (fejlesztői, automatikus újratöltéssel)
+# 5) Mintaadatok (alice@example.com / bob@example.com, barátság + demó csoport)
+npm run seed
+
+# 6) Szerver indítása (fejlesztői, automatikus újratöltéssel)
 npm run dev
 ```
 
@@ -40,6 +43,11 @@ Ellenőrzés: <http://localhost:3000/health> → `{"status":"ok","db":"up", ...}
 
 Leállítás: `Ctrl+C` a szervernél, majd `docker compose down` (az adatok megmaradnak a
 `moto_pgdata` volume-ban; teljes törléshez `docker compose down -v`).
+
+A `npm run seed` bármikor újrafuttatható: nem hoz létre duplikátumokat, a meglévő
+tesztfelhasználók jelszavát/adatait visszaállítja, és biztosítja az Alice–Bobber
+barátságot, valamint a „Betyár Riders Klub” demó csoportot (Alice tulajdonos,
+Bobber tag).
 
 ## Végpontok
 
@@ -134,6 +142,7 @@ backend/
     config.js             .env betöltés + alapértelmezések
     db/pool.js            pg kapcsolatpool
     db/migrate.js         SQL migráció futtató
+    db/seed.js            fejlesztői mintaadatok (tesztfelhasználók, barátság, csoport)
     middleware/auth.js    JWT kiállítás és Bearer ellenőrzés
     middleware/error.js   404 + egységes hibaválasz
     routes/               health, auth, users, friends, groups

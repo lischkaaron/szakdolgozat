@@ -28,6 +28,7 @@ Copy-Item .env.example .env      # JWT_SECRET átírása ajánlott
 docker compose up -d             # PostGIS adatbázis + Adminer
 npm install
 npm run migrate                  # táblák létrehozása
+npm run seed                     # tesztfelhasználók + demó csoport (opcionális)
 npm run dev                      # http://localhost:3000
 ```
 
@@ -74,7 +75,8 @@ létrehozta; ő szerkesztheti és törölheti a csoportot, valamint tagokat keze
 | `bob@example.com` | `titkosJelszo123` | Honda CB500X, barátja Alice |
 
 Új fiók a regisztrációs képernyőn is létrehozható. Ha a fiókok nem léteznek
-(pl. üres adatbázis), a `backend/README.md` PowerShell példájával hozhatók létre.
+(pl. üres adatbázis), a `cd backend; npm run seed` paranccsal hozhatók létre
+(a szkript a barátságot és egy demó csoportot is beállít).
 
 ### Tesztek
 
