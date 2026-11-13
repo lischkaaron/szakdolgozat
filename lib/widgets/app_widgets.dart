@@ -47,3 +47,67 @@ class InfoChip extends StatelessWidget {
     );
   }
 }
+
+/// Kezdőbetűs avatar (barátlistához és csoporttagokhoz).
+class InitialsAvatar extends StatelessWidget {
+  final String initials;
+  final double radius;
+
+  const InitialsAvatar({super.key, required this.initials, this.radius = 20});
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.amber,
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: radius * 0.6,
+          fontWeight: FontWeight.bold,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+}
+
+/// Hibaüzenet újrapróbálkozás gombbal (hálózati / szerverhiba esetén).
+class ErrorRetryView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const ErrorRetryView({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 40, color: Color(0xFF9E9E9E)),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('ÚJRAPRÓBÁLKOZÁS'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

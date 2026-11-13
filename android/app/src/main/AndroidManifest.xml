@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A backend REST API eléréséhez (regisztráció, bejelentkezés, barátok). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="moto_konvoj"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: csak a helyi fejlesztői backend HTTP eléréséhez kell.
+             Éles környezetben a backend HTTPS-en fusson, és ezt a kapcsolót vedd ki. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:moto_konvoj/main.dart';
+import 'package:moto_konvoj/screens/main_navigation_screen.dart';
 
 void main() {
   testWidgets('Az alsó navigáció 3 fület mutat, a tervezés térképpel indul', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MotorcycleConvoyApp());
+    await tester.pumpWidget(const MaterialApp(home: MainNavigationScreen()));
 
     // Három fül: tervezés, közösség, profil.
     expect(find.text('Tervezés'), findsOneWidget);
@@ -24,7 +24,7 @@ void main() {
   testWidgets('Úti cél után indulás választható, majd elindítható a túra', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MotorcycleConvoyApp());
+    await tester.pumpWidget(const MaterialApp(home: MainNavigationScreen()));
 
     // Úti cél keresése a felső keresősávban.
     await tester.tap(find.byKey(const Key('destinationSearchField')));
@@ -97,7 +97,7 @@ void main() {
   testWidgets('Az úti cél utólag is módosítható a keresősávból', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MotorcycleConvoyApp());
+    await tester.pumpWidget(const MaterialApp(home: MainNavigationScreen()));
 
     await tester.tap(find.byKey(const Key('destinationSearchField')));
     await tester.pumpAndSettle();
@@ -142,7 +142,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetViewInsets);
 
-    await tester.pumpWidget(const MotorcycleConvoyApp());
+    await tester.pumpWidget(const MaterialApp(home: MainNavigationScreen()));
 
     await tester.tap(find.byKey(const Key('destinationSearchField')));
     await tester.pumpAndSettle();
